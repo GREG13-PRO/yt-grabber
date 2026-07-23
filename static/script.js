@@ -116,6 +116,7 @@ async function fetchFormats() {
 async function startDownload() {
   const url = urlInput.value.trim();
   const quality = selectedQuality;
+  const reencode = document.getElementById("reencode-check").checked;
   hideError(downloadError);
   downloadLink.classList.add("hidden");
   progressArea.classList.remove("hidden");
@@ -128,7 +129,7 @@ async function startDownload() {
     const resp = await fetch("/api/download", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, quality }),
+      body: JSON.stringify({ url, quality, reencode }),
     });
     const data = await resp.json();
 

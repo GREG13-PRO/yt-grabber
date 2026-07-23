@@ -29,9 +29,11 @@ FFMPEG_PATH = bundled_binary("ffmpeg", "ffmpeg") or shutil.which("ffmpeg")
 
 
 def _pick_h264_encoder():
-    # Pick the best available H.264 encoder for re-encoding high-res (AV1/VP9)
-    # downloads so they play in QuickTime. Prefer Apple's hardware encoder
-    # (fast); fall back to software libx264 (slower but universal).
+    # Pick the fastest available H.264 encoder for re-encoding high-res
+    # (AV1/VP9) downloads. Prefer a hardware encoder for the platform's GPU
+    # (Apple VideoToolbox, NVIDIA NVENC, Intel QuickSync, AMD AMF); fall back
+    # to software libx264. "Listed" doesn't guarantee "works" (e.g. nvenc with
+    # no NVIDIA GPU), so _reencode_to_h264 retries with libx264 on failure.
     if not FFMPEG_PATH:
         return None
     try:
@@ -41,7 +43,7 @@ def _pick_h264_encoder():
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return None
-    for enc in ("h264_videotoolbox", "libx264"):
+    for enc in ("h264_videotoolbox", "h264_nvenc", "h264_qsv", "h264_amf", "libx264"):
         if enc in out:
             return enc
     return None
@@ -172,25 +174,25 @@ def _target_bitrate(height):
     return "12M"
 
 
-def _reencode_to_h264(src_path, info, download_id):
-    """Re-encode an AV1/VP9 file to H.264 8-bit yuv420p in an mp4 so it plays
-    smoothly in QuickTime. -pix_fmt yuv420p is essential: high-res sources are
-    often 10-bit, which would otherwise yield a High10 profile QuickTime can't
-    decode (the green frames)."""
-    duration = info.get("duration") or 0
-    height = info.get("height") or 0
-    tmp_path = src_path + ".h264.mp4"
+def _encoder_args(encoder, height):
+    if encoder == "libx264":
+        # veryfast keeps software encoding as quick as possible (the user is on
+        # a machine without a hardware H.264 encoder).
+        return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21"]
+    # Hardware encoders (videotoolbox / nvenc / qsv / amf) take a bitrate.
+    return ["-c:v", encoder, "-b:v", _target_bitrate(height)]
 
-    cmd = [
-        FFMPEG_PATH, "-y", "-i", src_path,
-        "-map", "0:v:0", "-map", "0:a:0?",
-        "-c:v", H264_ENCODER, "-pix_fmt", "yuv420p",
-    ]
-    if H264_ENCODER == "libx264":
-        cmd += ["-preset", "medium", "-crf", "20"]
-    else:  # hardware encoders take a target bitrate rather than CRF
-        cmd += ["-b:v", _target_bitrate(height)]
+
+def _run_encode(src_path, tmp_path, encoder, height, duration, download_id):
+    # -hwaccel auto uses the GPU to DECODE the AV1/VP9 source when the machine
+    # supports it (huge speedup on modern GPUs); it falls back to software
+    # decode gracefully. -pix_fmt yuv420p forces 8-bit output so QuickTime can
+    # play it (10-bit sources would otherwise green out).
+    cmd = [FFMPEG_PATH, "-y", "-hwaccel", "auto", "-i", src_path,
+           "-map", "0:v:0", "-map", "0:a:0?"]
+    cmd += _encoder_args(encoder, height)
     cmd += [
+        "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart",
         "-progress", "pipe:1", "-nostats",
@@ -217,10 +219,32 @@ def _reencode_to_h264(src_path, info, download_id):
             os.remove(tmp_path)
         raise RuntimeError("Az átkódolás H.264-re nem sikerült.")
 
-    os.replace(tmp_path, src_path)
+
+def _reencode_to_h264(src_path, info, download_id):
+    """Re-encode an AV1/VP9 file to H.264 8-bit yuv420p mp4 so it plays smoothly
+    in QuickTime. Tries the fast hardware encoder first; if that fails at
+    runtime (e.g. nvenc listed but no NVIDIA GPU), retries with software
+    libx264."""
+    duration = info.get("duration") or 0
+    height = info.get("height") or 0
+    tmp_path = src_path + ".h264.mp4"
+
+    encoders = [H264_ENCODER]
+    if H264_ENCODER != "libx264":
+        encoders.append("libx264")
+
+    last_error = None
+    for encoder in encoders:
+        try:
+            _run_encode(src_path, tmp_path, encoder, height, duration, download_id)
+            os.replace(tmp_path, src_path)
+            return
+        except RuntimeError as e:
+            last_error = e
+    raise last_error or RuntimeError("Az átkódolás H.264-re nem sikerült.")
 
 
-def run_download(download_id, url, quality):
+def run_download(download_id, url, quality, reencode=True):
     def hook(d):
         if d["status"] == "downloading":
             total = d.get("total_bytes") or d.get("total_bytes_estimate")
@@ -257,10 +281,13 @@ def run_download(download_id, url, quality):
         final_path = info["requested_downloads"][0]["filepath"]
 
         # High-res downloads are AV1/VP9 (no H.264 exists above 1080p on
-        # YouTube). Re-encode those to H.264 so they play in QuickTime.
+        # YouTube). Re-encode those to H.264 so they play in QuickTime - unless
+        # the user opted into fast mode (reencode=False) to skip the slow
+        # transcode and play the original in e.g. VLC.
         vcodec = _selected_vcodec(info)
         if (
-            quality != "audio"
+            reencode
+            and quality != "audio"
             and H264_ENCODER
             and vcodec
             and vcodec != "none"
@@ -303,6 +330,7 @@ def api_download():
     data = request.get_json(silent=True) or {}
     url = data.get("url", "")
     quality = data.get("quality", "")
+    reencode = data.get("reencode", True)
 
     if not is_valid_youtube_url(url):
         return jsonify({"error": "Adj meg egy érvényes YouTube URL-t."}), 400
@@ -311,7 +339,9 @@ def api_download():
 
     download_id = uuid.uuid4().hex
     progress_state[download_id] = {"status": "starting"}
-    thread = threading.Thread(target=run_download, args=(download_id, url, quality), daemon=True)
+    thread = threading.Thread(
+        target=run_download, args=(download_id, url, quality, bool(reencode)), daemon=True
+    )
     thread.start()
 
     return jsonify({"download_id": download_id})
