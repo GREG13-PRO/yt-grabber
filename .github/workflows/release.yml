@@ -57,10 +57,18 @@ jobs:
           hdiutil create -volname "YT Grabber" -srcfolder "dist/YT Grabber.app" \
             -ov -format UDZO "${{ matrix.artifact_name }}.dmg"
 
-      - name: Package Windows .exe
+      - name: Package Windows installer
         if: runner.os == 'Windows'
-        shell: bash
-        run: cp "dist/YT Grabber.exe" "${{ matrix.artifact_name }}.exe"
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          if (-not $version) { $version = "0.0.0" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=$version" `
+            "/DRepoRoot=$env:GITHUB_WORKSPACE" `
+            "packaging\windows_installer.iss"
+          Copy-Item "Output\YT-Grabber-Windows-Setup.exe" "${{ matrix.artifact_name }}-Setup.exe"
 
       - name: Package Linux binary
         if: runner.os == 'Linux'
@@ -71,7 +79,7 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: |
             ${{ matrix.artifact_name }}.dmg
-            ${{ matrix.artifact_name }}.exe
+            ${{ matrix.artifact_name }}-Setup.exe
             ${{ matrix.artifact_name }}
           if-no-files-found: ignore
 

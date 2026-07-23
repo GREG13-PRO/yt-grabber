@@ -68,9 +68,10 @@ def main():
         add_data_arg(ffmpeg_dir, os.path.join("vendor", "ffmpeg", plat)),
     ]
     # macOS keeps the default onedir output so PyInstaller produces a proper
-    # .app bundle (wrapped into a .dmg afterwards). Windows/Linux get a single
-    # portable executable, matching what users expect there.
-    if plat != "macos":
+    # .app bundle (wrapped into a .dmg afterwards). Windows also uses onedir so
+    # the Inno Setup installer can package the folder into a real installer
+    # (Start Menu + uninstaller). Only Linux ships a single portable binary.
+    if plat == "linux":
         args.append("--onefile")
     args.append(os.path.join(ROOT, "desktop.py"))
 

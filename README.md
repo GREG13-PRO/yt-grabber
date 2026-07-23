@@ -6,10 +6,12 @@ Helyi, egyszemélyes használatra szánt YouTube videó/hang letöltő, modern f
 
 A [Releases](../../releases) oldalon minden verzióhoz automatikusan épül:
 - **macOS**: `YT-Grabber-macOS.dmg`
-- **Windows**: `YT-Grabber-Windows.exe`
+- **Windows**: `YT-Grabber-Windows-Setup.exe` (telepítő — Start menü + eltávolító)
 - **Linux**: `YT-Grabber-Linux` (futtatható bináris)
 
 Ezek önmagukban működnek — a szükséges ffmpeg be van csomagolva, semmit nem kell külön telepíteni.
+
+A Windows telepítő futtatásakor a program a felhasználói fiókodba települ (nem kell rendszergazdai jogosultság), létrehoz egy Start menü parancsikont (opcionálisan asztali ikont is), és megjelenik a **Programok telepítése/eltávolítása** listában, ahonnan később eltávolítható.
 
 > **Linux megjegyzés:** a desktop ablak (`pywebview`) a rendszer WebKitGTK-jét használja. Ha az App nem indul, telepítsd: `sudo apt install gir1.2-webkit2-4.1` (Debian/Ubuntu) vagy a disztród megfelelő csomagját.
 
@@ -72,7 +74,13 @@ pip install -r requirements-build.txt
 python packaging/build.py
 ```
 
-Az eredmény a `dist/` mappában lesz (macOS: `.app`, Windows/Linux: egyetlen futtatható fájl). A GitHub Actions workflow (`.github/workflows/release.yml`) ugyanezt futtatja le mindhárom platformon egy `v*` tag push-ra, és feltölti az eredményt a Release-hez.
+Az eredmény a `dist/` mappában lesz (macOS: `.app` mappa, Windows: `YT Grabber\` mappa, Linux: egyetlen futtatható fájl). A GitHub Actions workflow (`.github/workflows/release.yml`) ugyanezt futtatja le mindhárom platformon egy `v*` tag push-ra, és feltölti az eredményt a Release-hez.
+
+Windows-on a workflow ezután [Inno Setup](https://jrsoftware.org/isinfo.php)-pal (`packaging/windows_installer.iss`) becsomagolja a `dist\YT Grabber\` mappát egy `YT-Grabber-Windows-Setup.exe` telepítővé. Helyi telepítő-buildhez telepítsd az Inno Setupot, majd:
+
+```powershell
+ISCC.exe /DMyAppVersion=0.1.2 /DRepoRoot=%CD% packaging\windows_installer.iss
+```
 
 ## Felelősség
 
