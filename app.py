@@ -38,13 +38,15 @@ QUALITY_FORMAT_MAP = {
     "audio": "bestaudio/best",
 }
 
-# YouTube sok kliensnél PO tokent (proof-of-origin) követel meg a jó minőségű
-# formátumokhoz. A pot_server modul egy helyi bgutil PO-token szervert indít,
-# aminek a yt-dlp bgutil-ytdlp-pot-provider plugin-je automatikusan megtalálja
-# és használja (nincs szükség extractor_args-ban explicit megadni). Ha a
-# szerver nem elérhető (pl. nincs telepítve node fejlesztői módban), yt-dlp
-# ettől még működik, csak a minőség YouTube-oldali korlátozás alá eshet.
-EXTRACTOR_ARGS = {}
+# YouTube alapértelmezett yt-dlp kliensei (tv + web safari) jelenleg
+# megbízhatatlanok: gyakran "The page needs to be reloaded" hibát dobnak
+# YouTube szerveroldali (SABR / PO Token) védelme miatt - ez volt tesztelve,
+# nem IP-korlátozás, mert több hálózatról/IP-ről is ugyanígy jelentkezett.
+# Az android+tv_simply kombináció megbízhatóan működik nélküle is, ezért ezt
+# kényszerítjük. A pot_server (lásd lent) néhány esetben tovább javíthatja a
+# minőséget, de a jelenlegi yt-dlp verzióval nem garantált 360p fölé - lásd
+# README "Ismert korlátozás: elérhető minőség" szakasz.
+EXTRACTOR_ARGS = {"youtube": {"player_client": ["android", "tv_simply"]}}
 
 # In-memory progress tracking: download_id -> {"status": ..., ...}
 progress_state = {}

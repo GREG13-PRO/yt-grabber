@@ -13,14 +13,19 @@ Ezek önmagukban működnek — a szükséges ffmpeg és a "legjobb minőség" m
 
 > **Linux megjegyzés:** a desktop ablak (`pywebview`) a rendszer WebKitGTK-jét használja. Ha az App nem indul, telepítsd: `sudo apt install gir1.2-webkit2-4.1` (Debian/Ubuntu) vagy a disztród megfelelő csomagját.
 
-## Legjobb minőség: PO-token szerver
+> **macOS/Windows megjegyzés:** a csomagok nincsenek Apple/Microsoft által aláírva (ez fizetős fejlesztői előfizetést igényelne), ezért első futtatáskor figyelmeztetést kaphatsz ("unidentified developer" / "Windows protected your PC"). macOS-en: jobb klikk a `.app`-on → **Megnyitás**, vagy `xattr -d com.apple.quarantine "YT Grabber.app"` terminálban. Windows-on: **More info** → **Run anyway**.
 
-A YouTube egyre több formátumot köt egy ún. PO Tokenhez (proof-of-origin), aminek hiányában a yt-dlp gyakran csak alacsony (~360p) minőséget tud elérni, vagy hibát dob ("The page needs to be reloaded"). Ennek megkerülésére az app egy helyi [bgutil-ytdlp-pot-provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider) szervert indít háttérben (Node.js-en), ami tokent generál a yt-dlp számára.
+## Ismert korlátozás: elérhető minőség
 
-- A kész csomagokban (DMG/EXE/Linux) ez **be van építve**, automatikusan elindul, nincs teendő.
-- Forrásból futtatva (lásd lent) **egyszeri setup script** kell hozzá.
-- Ha valamiért nem elérhető (pl. nincs Node.js fejlesztői módban), az app attól még működik, csak a minőség YouTube-oldali korlátozás alá eshet — a minőség-választó mindig csak azt kínálja, ami ténylegesen elérhető.
-- Mivel ez a YouTube és a yt-dlp közötti folyamatosan változó "versenyfutás", időnként érdemes frissíteni: `pip install -U yt-dlp`.
+A YouTube egyre több formátumot köt egy ún. PO Tokenhez (proof-of-origin), és sok kliens-típusnál egy újabb szerveroldali váltást ("SABR streaming") is bevezetett, amit a yt-dlp jelenleg nem támogat minden esetben. A yt-dlp **alapértelmezett** kliensei (`tv` + `web_safari`) emiatt jelenleg megbízhatatlanok — gyakran "The page needs to be reloaded" hibát dobnak (ez nem hálózati/IP probléma, több hálózatról tesztelve is ugyanígy jelentkezik).
+
+Ennek elkerülésére az app az `android` + `tv_simply` klienseket kényszeríti (lásd `app.py` `EXTRACTOR_ARGS`), ami megbízhatóan működik, **de emiatt a legtöbb videónál jelenleg ~360p a plafon** — a minőség-választó mindig csak azt kínálja, ami ténylegesen elérhető, szóval nem fog hibázni, csak korlátozottabb a választék.
+
+Az app emellett elindít egy helyi [bgutil-ytdlp-pot-provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider) PO-token szervert is (Node.js-en) — ez a közösség jelenleg legjobb megoldása a probléma teljes megkerülésére, és előfordulhat, hogy egyes videóknál segít, de a jelenleg tesztelt yt-dlp verzióval **nem garantált**, hogy 360p fölé kerülünk vele. Fontos: a bgutil plugin **1.3.x** verziója összeomlik az `android` kliens használatakor ezzel a yt-dlp verzióval (`debug() got an unexpected keyword argument 'once'` hiba) — emiatt a `requirements.txt` szándékosan **1.2.2**-re van rögzítve.
+
+Ha ez a jövőben javul (a yt-dlp és YouTube "versenyfutása" gyakran változik):
+- Rendszeresen frissítsd a yt-dlp-t: `pip install -U yt-dlp`.
+- Próbáld ki a bgutil plugin újabb verzióját is (`pip install -U bgutil-ytdlp-pot-provider`), ha a fenti hiba időközben javult upstream.
 
 ## Fejlesztői futtatás forrásból
 
