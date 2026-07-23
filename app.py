@@ -35,14 +35,36 @@ ALLOWED_HOSTS = {
     "www.youtu.be",
 }
 
+def _compatible_format(max_height):
+    # <=1080p: prefer H.264 (avc1) + AAC. These are hardware-decoded and play
+    # smoothly everywhere (QuickTime included). Picking the raw "bestvideo"
+    # would often grab VP9, which QuickTime renders as green/stuttering frames.
+    return (
+        f"bestvideo[height<={max_height}][vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
+        f"bestvideo[height<={max_height}][vcodec^=av01]+bestaudio/"
+        f"bestvideo[height<={max_height}]+bestaudio/best[height<={max_height}]"
+    )
+
+
+def _highres_format(max_height):
+    # >1080p: no H.264 exists on YouTube, so prefer AV1 over VP9. VP9 muxed
+    # into an mp4 container is what produces the green frames in QuickTime;
+    # AV1-in-mp4 plays cleanly in VLC and modern QuickTime.
+    return (
+        f"bestvideo[height<={max_height}][vcodec^=av01]+bestaudio/"
+        f"bestvideo[height<={max_height}][vcodec^=vp9]+bestaudio/"
+        f"bestvideo[height<={max_height}]+bestaudio/best[height<={max_height}]"
+    )
+
+
 QUALITY_FORMAT_MAP = {
-    "best": "bestvideo+bestaudio/best",
-    "2160p": "bestvideo[height<=2160]+bestaudio/best[height<=2160]",
-    "1440p": "bestvideo[height<=1440]+bestaudio/best[height<=1440]",
-    "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-    "720p": "bestvideo[height<=720]+bestaudio/best[height<=720]",
-    "480p": "bestvideo[height<=480]+bestaudio/best[height<=480]",
-    "360p": "bestvideo[height<=360]+bestaudio/best[height<=360]",
+    "best": "bestvideo[vcodec^=av01]+bestaudio/bestvideo+bestaudio/best",
+    "2160p": _highres_format(2160),
+    "1440p": _highres_format(1440),
+    "1080p": _compatible_format(1080),
+    "720p": _compatible_format(720),
+    "480p": _compatible_format(480),
+    "360p": _compatible_format(360),
     "audio": "bestaudio/best",
 }
 

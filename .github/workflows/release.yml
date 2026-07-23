@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-13
             artifact_name: YT-Grabber-macOS
           - os: windows-latest
             artifact_name: YT-Grabber-Windows
@@ -32,17 +32,36 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements-build.txt
 
-      - name: Install ffmpeg (macOS)
+      - name: Fetch static ffmpeg (macOS)
         if: runner.os == 'macOS'
-        run: brew install ffmpeg
+        run: |
+          curl -L -o ffmpeg.zip https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip
+          curl -L -o ffprobe.zip https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip
+          unzip -o ffmpeg.zip -d ffmpeg_dl
+          unzip -o ffprobe.zip -d ffmpeg_dl
+          chmod +x ffmpeg_dl/ffmpeg ffmpeg_dl/ffprobe
+          echo "FFMPEG_BINARY=$PWD/ffmpeg_dl/ffmpeg" >> "$GITHUB_ENV"
+          echo "FFPROBE_BINARY=$PWD/ffmpeg_dl/ffprobe" >> "$GITHUB_ENV"
 
-      - name: Install ffmpeg (Windows)
+      - name: Fetch static ffmpeg (Windows)
         if: runner.os == 'Windows'
-        run: choco install ffmpeg -y
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_dl
+          $bin = (Get-ChildItem -Recurse -Filter ffmpeg.exe ffmpeg_dl | Select-Object -First 1).DirectoryName
+          echo "FFMPEG_BINARY=$bin\ffmpeg.exe" >> $env:GITHUB_ENV
+          echo "FFPROBE_BINARY=$bin\ffprobe.exe" >> $env:GITHUB_ENV
 
-      - name: Install ffmpeg (Linux)
+      - name: Fetch static ffmpeg (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        run: |
+          curl -L -o ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+          mkdir ffmpeg_dl
+          tar -xf ffmpeg.tar.xz -C ffmpeg_dl --strip-components=1
+          chmod +x ffmpeg_dl/ffmpeg ffmpeg_dl/ffprobe
+          echo "FFMPEG_BINARY=$PWD/ffmpeg_dl/ffmpeg" >> "$GITHUB_ENV"
+          echo "FFPROBE_BINARY=$PWD/ffmpeg_dl/ffprobe" >> "$GITHUB_ENV"
 
       - name: Install Linux webview system dependencies
         if: runner.os == 'Linux'

@@ -27,6 +27,12 @@ A YouTube időnként szerveroldali változtatásokat vezet be, amik átmenetileg
 
 A kész csomagok (fenti Releases) már eleve friss Python-nal épülnek, ott ez nem szokott gondot okozni.
 
+### Codec és lejátszhatóság (4K)
+
+Az app a lehető legkompatibilisebb codecet választja: 1080p-ig **H.264-et** (avc1) — ez mindenhol simán, hardveresen játszódik (QuickTime is). A YouTube-on azonban **1080p felett nincs H.264**, csak AV1 vagy VP9. Ezeknél az app az **AV1**-et részesíti előnyben (a VP9-MP4 kombináció QuickTime-ban zöld kockákat / akadozást okoz).
+
+Ha egy 4K/1440p fájl mégis akadozik a QuickTime-ban, az a szoftveres AV1-dekódolás miatt lehet — nyisd meg inkább **[VLC](https://www.videolan.org/)**-ben, ami minden codecet gördülékenyen lejátszik.
+
 ## Fejlesztői futtatás forrásból
 
 ### Előfeltételek

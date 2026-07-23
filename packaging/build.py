@@ -31,16 +31,32 @@ def find_binary(name):
     return path
 
 
+def _copy_binary(src, dest):
+    shutil.copy2(src, dest)
+    if not sys.platform.startswith("win"):
+        os.chmod(dest, 0o755)
+
+
 def stage_ffmpeg(staging_dir):
     plat = platform_dir_name()
     exe_suffix = ".exe" if sys.platform.startswith("win") else ""
+    dest_dir = os.path.join(staging_dir, "vendor", "ffmpeg", plat)
+    os.makedirs(dest_dir, exist_ok=True)
 
-    ffmpeg_src = find_binary("ffmpeg")
-    ffmpeg_dest_dir = os.path.join(staging_dir, "vendor", "ffmpeg", plat)
-    os.makedirs(ffmpeg_dest_dir, exist_ok=True)
-    shutil.copy2(ffmpeg_src, os.path.join(ffmpeg_dest_dir, "ffmpeg" + exe_suffix))
+    # Prefer a STATIC binary passed explicitly via FFMPEG_BINARY. A binary
+    # taken from `shutil.which` (Homebrew on macOS, a chocolatey shim on
+    # Windows) depends on its original install location and breaks on the end
+    # user's machine - hence the CI downloads a self-contained static build and
+    # points these env vars at it.
+    ffmpeg_src = os.environ.get("FFMPEG_BINARY") or find_binary("ffmpeg")
+    _copy_binary(ffmpeg_src, os.path.join(dest_dir, "ffmpeg" + exe_suffix))
 
-    return ffmpeg_dest_dir
+    # yt-dlp also looks for ffprobe next to ffmpeg; bundle it when available.
+    ffprobe_src = os.environ.get("FFPROBE_BINARY") or shutil.which("ffprobe")
+    if ffprobe_src and os.path.isfile(ffprobe_src):
+        _copy_binary(ffprobe_src, os.path.join(dest_dir, "ffprobe" + exe_suffix))
+
+    return dest_dir
 
 
 def add_data_arg(src, dest_in_bundle):
