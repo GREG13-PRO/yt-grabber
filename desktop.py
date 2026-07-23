@@ -2,7 +2,6 @@ import threading
 
 import webview
 
-import pot_server
 from app import app, bootstrap
 
 HOST = "127.0.0.1"
@@ -28,8 +27,6 @@ def main():
         background_color="#0b0c10",
     )
     webview.start()
-
-    pot_server.stop()
 
 
 if __name__ == "__main__":

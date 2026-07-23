@@ -9,30 +9,27 @@ A [Releases](../../releases) oldalon minden verzióhoz automatikusan épül:
 - **Windows**: `YT-Grabber-Windows.exe`
 - **Linux**: `YT-Grabber-Linux` (futtatható bináris)
 
-Ezek önmagukban működnek — a szükséges ffmpeg és a "legjobb minőség" mechanizmus (lásd lent) be van csomagolva, semmit nem kell külön telepíteni.
+Ezek önmagukban működnek — a szükséges ffmpeg be van csomagolva, semmit nem kell külön telepíteni.
 
 > **Linux megjegyzés:** a desktop ablak (`pywebview`) a rendszer WebKitGTK-jét használja. Ha az App nem indul, telepítsd: `sudo apt install gir1.2-webkit2-4.1` (Debian/Ubuntu) vagy a disztród megfelelő csomagját.
 
 > **macOS/Windows megjegyzés:** a csomagok nincsenek Apple/Microsoft által aláírva (ez fizetős fejlesztői előfizetést igényelne), ezért első futtatáskor figyelmeztetést kaphatsz ("unidentified developer" / "Windows protected your PC"). macOS-en: jobb klikk a `.app`-on → **Megnyitás**, vagy `xattr -d com.apple.quarantine "YT Grabber.app"` terminálban. Windows-on: **More info** → **Run anyway**.
 
-## Ismert korlátozás: elérhető minőség
+## Elérhető minőség
 
-A YouTube egyre több formátumot köt egy ún. PO Tokenhez (proof-of-origin), és sok kliens-típusnál egy újabb szerveroldali váltást ("SABR streaming") is bevezetett, amit a yt-dlp jelenleg nem támogat minden esetben. A yt-dlp **alapértelmezett** kliensei (`tv` + `web_safari`) emiatt jelenleg megbízhatatlanok — gyakran "The page needs to be reloaded" hibát dobnak (ez nem hálózati/IP probléma, több hálózatról tesztelve is ugyanígy jelentkezik).
+A YouTube időnként szerveroldali változtatásokat vezet be, amik átmenetileg megzavarhatják a yt-dlp-t. Ez egy **friss yt-dlp-vel** (ami Python 3.10+-at igényel) jellemzően nem probléma — teljes formátumlistát ad, akár 1080p+ is elérhető. A minőség-választó mindig csak azt kínálja fel, ami az adott videónál ténylegesen elérhető.
 
-Ennek elkerülésére az app az `android` + `tv_simply` klienseket kényszeríti (lásd `app.py` `EXTRACTOR_ARGS`), ami megbízhatóan működik, **de emiatt a legtöbb videónál jelenleg ~360p a plafon** — a minőség-választó mindig csak azt kínálja, ami ténylegesen elérhető, szóval nem fog hibázni, csak korlátozottabb a választék.
+**Ha csak alacsony (pl. 360p) minőséget kapsz:**
+1. Ellenőrizd a Python verziót: `python3 --version` — ha 3.9 vagy régebbi, a `pip` egy régi, korlátozott yt-dlp verziót fog telepíteni. Telepíts Python 3.10+-at (pl. `brew install python@3.12` macOS-en), és azzal hozd létre a venv-et.
+2. Frissítsd a yt-dlp-t a venv-ben: `pip install -U yt-dlp`.
 
-Az app emellett elindít egy helyi [bgutil-ytdlp-pot-provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider) PO-token szervert is (Node.js-en) — ez a közösség jelenleg legjobb megoldása a probléma teljes megkerülésére, és előfordulhat, hogy egyes videóknál segít, de a jelenleg tesztelt yt-dlp verzióval **nem garantált**, hogy 360p fölé kerülünk vele. Fontos: a bgutil plugin **1.3.x** verziója összeomlik az `android` kliens használatakor ezzel a yt-dlp verzióval (`debug() got an unexpected keyword argument 'once'` hiba) — emiatt a `requirements.txt` szándékosan **1.2.2**-re van rögzítve.
-
-Ha ez a jövőben javul (a yt-dlp és YouTube "versenyfutása" gyakran változik):
-- Rendszeresen frissítsd a yt-dlp-t: `pip install -U yt-dlp`.
-- Próbáld ki a bgutil plugin újabb verzióját is (`pip install -U bgutil-ytdlp-pot-provider`), ha a fenti hiba időközben javult upstream.
+A kész csomagok (fenti Releases) már eleve friss Python-nal épülnek, ott ez nem szokott gondot okozni.
 
 ## Fejlesztői futtatás forrásból
 
 ### Előfeltételek
 
-- Python 3.10+ (a repo CI-ja 3.11-et használ)
-- Node.js 20+ (a PO-token szerver buildeléséhez és futtatásához)
+- **Python 3.10+** (fontos: régebbi Python csak régi yt-dlp-t kap a pip-től, lásd fent)
 - ffmpeg a PATH-on (`brew install ffmpeg` / `apt install ffmpeg` / `choco install ffmpeg`)
 
 ### Telepítés
@@ -41,9 +38,6 @@ Ha ez a jövőben javul (a yt-dlp és YouTube "versenyfutása" gyakran változik
 python3 -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# PO-token szerver egyszeri build (jobb minőségű letöltéshez):
-./scripts/setup_pot_server.sh      # Windows: scripts\setup_pot_server.ps1
 ```
 
 ### Futtatás böngészőben
@@ -75,7 +69,6 @@ Ugyanaz a felület, csak egy saját ablakban nyílik meg böngésző helyett.
 
 ```bash
 pip install -r requirements-build.txt
-./scripts/setup_pot_server.sh
 python packaging/build.py
 ```
 
@@ -88,5 +81,5 @@ Csak olyan tartalmat tölts le, amihez jogod van (saját videók, Creative Commo
 ## Hibaelhárítás
 
 - **"ffmpeg not found" figyelmeztetés indításkor** (forrásból futtatva): telepítsd az ffmpeg-et, majd indítsd újra az appot.
+- **Csak alacsony minőség érhető el**: lásd fent az "Elérhető minőség" szakaszt — ez szinte mindig a Python/yt-dlp verzió kérdése.
 - **Videó lekérdezési/letöltési hiba**: a YouTube gyakran változtat, ami elavulttá teheti a yt-dlp-t. Frissítsd: `pip install -U yt-dlp`.
-- **Alacsony minőség minden videónál**: ellenőrizd, hogy a PO-token szerver elindult-e (a konzolban "PO-token szerver elindult" üzenet jelenik meg indításkor).

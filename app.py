@@ -4,10 +4,16 @@ import threading
 import uuid
 from urllib.parse import urlparse
 
+import certifi
+
+# Some Python installs (notably Homebrew's on macOS) don't wire up the system
+# CA bundle, causing SSL verification failures on every request. Point at
+# certifi's bundle unless the environment already overrides this.
+os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+
 import yt_dlp
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
-import pot_server
 from paths import bundled_binary, resource_path, user_data_dir
 
 app = Flask(
@@ -38,15 +44,11 @@ QUALITY_FORMAT_MAP = {
     "audio": "bestaudio/best",
 }
 
-# YouTube alapértelmezett yt-dlp kliensei (tv + web safari) jelenleg
-# megbízhatatlanok: gyakran "The page needs to be reloaded" hibát dobnak
-# YouTube szerveroldali (SABR / PO Token) védelme miatt - ez volt tesztelve,
-# nem IP-korlátozás, mert több hálózatról/IP-ről is ugyanígy jelentkezett.
-# Az android+tv_simply kombináció megbízhatóan működik nélküle is, ezért ezt
-# kényszerítjük. A pot_server (lásd lent) néhány esetben tovább javíthatja a
-# minőséget, de a jelenlegi yt-dlp verzióval nem garantált 360p fölé - lásd
-# README "Ismert korlátozás: elérhető minőség" szakasz.
-EXTRACTOR_ARGS = {"youtube": {"player_client": ["android", "tv_simply"]}}
+# Friss yt-dlp (>=2025.11, ami Python 3.10+-at igényel) jó eséllyel magától
+# az "android_vr" klienst választja, ami PO Token nélkül is teljes DASH
+# formátumlistát ad (akár 1080p+). Régebbi yt-dlp / Python 3.9 esetén ez
+# nem garantált - lásd README "Minőség" szakasz.
+EXTRACTOR_ARGS = {}
 
 # In-memory progress tracking: download_id -> {"status": ..., ...}
 progress_state = {}
@@ -198,7 +200,6 @@ def bootstrap():
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     if FFMPEG_PATH is None:
         print("FIGYELEM: ffmpeg nem található. A minőség-egyesítés és MP3 konverzió nem fog működni. Lásd README.md.")
-    pot_server.start()
 
 
 if __name__ == "__main__":

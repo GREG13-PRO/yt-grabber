@@ -27,11 +27,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+          python-version: "3.12"
 
       - name: Install Python dependencies
         run: pip install -r requirements-build.txt
@@ -51,10 +47,6 @@ jobs:
       - name: Install Linux webview system dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get install -y python3-gi gir1.2-webkit2-4.1 libgtk-3-dev
-
-      - name: Build bgutil PO-token server
-        shell: bash
-        run: ./scripts/setup_pot_server.sh
 
       - name: Run PyInstaller
         run: python packaging/build.py
