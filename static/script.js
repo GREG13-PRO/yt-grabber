@@ -21,6 +21,8 @@ const downloadError = document.getElementById("download-error");
 
 const QUALITY_LABELS = {
   best: "Legjobb",
+  "2160p": "4K",
+  "1440p": "1440p",
   "1080p": "1080p",
   "720p": "720p",
   "480p": "480p",

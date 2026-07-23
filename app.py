@@ -37,6 +37,8 @@ ALLOWED_HOSTS = {
 
 QUALITY_FORMAT_MAP = {
     "best": "bestvideo+bestaudio/best",
+    "2160p": "bestvideo[height<=2160]+bestaudio/best[height<=2160]",
+    "1440p": "bestvideo[height<=1440]+bestaudio/best[height<=1440]",
     "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
     "720p": "bestvideo[height<=720]+bestaudio/best[height<=720]",
     "480p": "bestvideo[height<=480]+bestaudio/best[height<=480]",
@@ -89,7 +91,14 @@ def probe_video(url):
     max_height = heights[0] if heights else 0
 
     available = ["best"]
-    for label, min_height in (("1080p", 1080), ("720p", 720), ("480p", 480), ("360p", 360)):
+    for label, min_height in (
+        ("2160p", 2160),
+        ("1440p", 1440),
+        ("1080p", 1080),
+        ("720p", 720),
+        ("480p", 480),
+        ("360p", 360),
+    ):
         if max_height >= min_height:
             available.append(label)
     available.append("audio")
