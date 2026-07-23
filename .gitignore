@@ -1,0 +1,13 @@
+venv/
+.claude/
+__pycache__/
+*.pyc
+downloads/
+vendor/
+dist/
+build/
+*.spec
+.DS_Store
+*.dmg
+*.exe
+*.AppImage
