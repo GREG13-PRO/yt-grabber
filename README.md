@@ -29,9 +29,12 @@ A kész csomagok (fenti Releases) már eleve friss Python-nal épülnek, ott ez 
 
 ### Codec és lejátszhatóság (4K)
 
-Az app a lehető legkompatibilisebb codecet választja: 1080p-ig **H.264-et** (avc1) — ez mindenhol simán, hardveresen játszódik (QuickTime is). A YouTube-on azonban **1080p felett nincs H.264**, csak AV1 vagy VP9. Ezeknél az app az **AV1**-et részesíti előnyben (a VP9-MP4 kombináció QuickTime-ban zöld kockákat / akadozást okoz).
+Az app a lehető legkompatibilisebb, mindenhol (QuickTime-ban is) gördülékenyen játszódó **H.264/AAC MP4**-et állít elő:
 
-Ha egy 4K/1440p fájl mégis akadozik a QuickTime-ban, az a szoftveres AV1-dekódolás miatt lehet — nyisd meg inkább **[VLC](https://www.videolan.org/)**-ben, ami minden codecet gördülékenyen lejátszik.
+- **1080p-ig**: közvetlenül H.264-et tölt le (avc1) — nincs átkódolás.
+- **1440p / 4K**: a YouTube-on itt már nincs H.264, csak AV1/VP9 (ezek okozzák QuickTime-ban a zöld kockákat / akadozást). Ezért az app letöltés után **automatikusan átkódolja H.264-re** (8-bit, yuv420p), így az eredmény QuickTime-ban is tökéletesen megy.
+
+Az átkódolás macOS-en a rendszer **hardveres kódolóját** (VideoToolbox) használja, ha elérhető; egyébként szoftveresen (libx264). A magas felbontás miatt ez **eltarthat egy ideig** (a felület mutatja az „Átkódolás…" állapotot és a százalékot).
 
 ## Fejlesztői futtatás forrásból
 

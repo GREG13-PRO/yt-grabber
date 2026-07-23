@@ -1,5 +1,6 @@
 import os
 import shutil
+import subprocess
 import threading
 import uuid
 from urllib.parse import urlparse
@@ -25,6 +26,28 @@ app = Flask(
 DOWNLOAD_DIR = os.path.join(user_data_dir(), "downloads")
 
 FFMPEG_PATH = bundled_binary("ffmpeg", "ffmpeg") or shutil.which("ffmpeg")
+
+
+def _pick_h264_encoder():
+    # Pick the best available H.264 encoder for re-encoding high-res (AV1/VP9)
+    # downloads so they play in QuickTime. Prefer Apple's hardware encoder
+    # (fast); fall back to software libx264 (slower but universal).
+    if not FFMPEG_PATH:
+        return None
+    try:
+        out = subprocess.run(
+            [FFMPEG_PATH, "-hide_banner", "-encoders"],
+            capture_output=True, text=True, timeout=15,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    for enc in ("h264_videotoolbox", "libx264"):
+        if enc in out:
+            return enc
+    return None
+
+
+H264_ENCODER = _pick_h264_encoder()
 
 ALLOWED_HOSTS = {
     "youtube.com",
@@ -134,6 +157,69 @@ def probe_video(url):
     }
 
 
+def _selected_vcodec(info):
+    downloads = info.get("requested_downloads") or []
+    if downloads and downloads[0].get("vcodec"):
+        return downloads[0]["vcodec"]
+    return info.get("vcodec") or ""
+
+
+def _target_bitrate(height):
+    if height and height >= 2160:
+        return "40M"
+    if height and height >= 1440:
+        return "20M"
+    return "12M"
+
+
+def _reencode_to_h264(src_path, info, download_id):
+    """Re-encode an AV1/VP9 file to H.264 8-bit yuv420p in an mp4 so it plays
+    smoothly in QuickTime. -pix_fmt yuv420p is essential: high-res sources are
+    often 10-bit, which would otherwise yield a High10 profile QuickTime can't
+    decode (the green frames)."""
+    duration = info.get("duration") or 0
+    height = info.get("height") or 0
+    tmp_path = src_path + ".h264.mp4"
+
+    cmd = [
+        FFMPEG_PATH, "-y", "-i", src_path,
+        "-map", "0:v:0", "-map", "0:a:0?",
+        "-c:v", H264_ENCODER, "-pix_fmt", "yuv420p",
+    ]
+    if H264_ENCODER == "libx264":
+        cmd += ["-preset", "medium", "-crf", "20"]
+    else:  # hardware encoders take a target bitrate rather than CRF
+        cmd += ["-b:v", _target_bitrate(height)]
+    cmd += [
+        "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart",
+        "-progress", "pipe:1", "-nostats",
+        tmp_path,
+    ]
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    for line in proc.stdout:
+        line = line.strip()
+        if line.startswith("out_time=") and duration:
+            stamp = line.split("=", 1)[1]
+            try:
+                h, m, s = stamp.split(":")
+                seconds = int(h) * 3600 + int(m) * 60 + float(s)
+                progress_state[download_id] = {
+                    "status": "transcoding",
+                    "percent": min(round(seconds / duration * 100, 1), 99.9),
+                }
+            except (ValueError, IndexError):
+                pass
+    proc.wait()
+    if proc.returncode != 0:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise RuntimeError("Az átkódolás H.264-re nem sikerült.")
+
+    os.replace(tmp_path, src_path)
+
+
 def run_download(download_id, url, quality):
     def hook(d):
         if d["status"] == "downloading":
@@ -169,6 +255,20 @@ def run_download(download_id, url, quality):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
         final_path = info["requested_downloads"][0]["filepath"]
+
+        # High-res downloads are AV1/VP9 (no H.264 exists above 1080p on
+        # YouTube). Re-encode those to H.264 so they play in QuickTime.
+        vcodec = _selected_vcodec(info)
+        if (
+            quality != "audio"
+            and H264_ENCODER
+            and vcodec
+            and vcodec != "none"
+            and not vcodec.startswith("avc1")
+        ):
+            progress_state[download_id] = {"status": "transcoding", "percent": 0}
+            _reencode_to_h264(final_path, info, download_id)
+
         progress_state[download_id] = {
             "status": "finished",
             "filename": os.path.basename(final_path),

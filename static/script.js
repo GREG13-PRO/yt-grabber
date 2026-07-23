@@ -161,6 +161,11 @@ function pollProgress(downloadId) {
       } else if (data.status === "processing") {
         progressStatus.textContent = "Feldolgozás (egyesítés/konverzió)...";
         progressPercent.textContent = "";
+      } else if (data.status === "transcoding") {
+        const pct = data.percent ?? 0;
+        progressFill.style.width = `${pct}%`;
+        progressStatus.textContent = "Átkódolás H.264-re (QuickTime-kompatibilis)...";
+        progressPercent.textContent = data.percent ? `${data.percent}%` : "";
       } else if (data.status === "finished") {
         clearInterval(pollTimer);
         progressFill.style.width = "100%";

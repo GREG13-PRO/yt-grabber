@@ -37,25 +37,29 @@ def _copy_binary(src, dest):
         os.chmod(dest, 0o755)
 
 
+def _ffmpeg_source():
+    # A binary from `shutil.which` (Homebrew on macOS, a chocolatey shim on
+    # Windows) depends on its original install location and breaks on the end
+    # user's machine. imageio-ffmpeg ships a self-contained STATIC ffmpeg per
+    # platform via pip (includes libx264 for the H.264 re-encode), so it just
+    # works when bundled. FFMPEG_BINARY overrides it if ever needed.
+    env = os.environ.get("FFMPEG_BINARY")
+    if env and os.path.isfile(env):
+        return env
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return find_binary("ffmpeg")
+
+
 def stage_ffmpeg(staging_dir):
     plat = platform_dir_name()
     exe_suffix = ".exe" if sys.platform.startswith("win") else ""
     dest_dir = os.path.join(staging_dir, "vendor", "ffmpeg", plat)
     os.makedirs(dest_dir, exist_ok=True)
 
-    # Prefer a STATIC binary passed explicitly via FFMPEG_BINARY. A binary
-    # taken from `shutil.which` (Homebrew on macOS, a chocolatey shim on
-    # Windows) depends on its original install location and breaks on the end
-    # user's machine - hence the CI downloads a self-contained static build and
-    # points these env vars at it.
-    ffmpeg_src = os.environ.get("FFMPEG_BINARY") or find_binary("ffmpeg")
-    _copy_binary(ffmpeg_src, os.path.join(dest_dir, "ffmpeg" + exe_suffix))
-
-    # yt-dlp also looks for ffprobe next to ffmpeg; bundle it when available.
-    ffprobe_src = os.environ.get("FFPROBE_BINARY") or shutil.which("ffprobe")
-    if ffprobe_src and os.path.isfile(ffprobe_src):
-        _copy_binary(ffprobe_src, os.path.join(dest_dir, "ffprobe" + exe_suffix))
-
+    _copy_binary(_ffmpeg_source(), os.path.join(dest_dir, "ffmpeg" + exe_suffix))
     return dest_dir
 
 
