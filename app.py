@@ -28,25 +28,50 @@ DOWNLOAD_DIR = os.path.join(user_data_dir(), "downloads")
 FFMPEG_PATH = bundled_binary("ffmpeg", "ffmpeg") or shutil.which("ffmpeg")
 
 
+def _encoder_works(encoder):
+    # Actually try the encoder on a tiny synthetic clip. Being *listed* in
+    # `ffmpeg -encoders` only means it was compiled in - e.g. the Windows build
+    # lists h264_nvenc even with no NVIDIA GPU. This probe returns True only if
+    # the encoder really initialises on this machine's GPU.
+    try:
+        result = subprocess.run(
+            [FFMPEG_PATH, "-hide_banner", "-loglevel", "error",
+             "-f", "lavfi", "-i", "color=c=black:s=1280x720:r=5:d=1",
+             "-frames:v", "3", "-c:v", encoder, "-pix_fmt", "yuv420p",
+             "-b:v", "4M", "-f", "null", "-"],
+            capture_output=True, timeout=25,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def _pick_h264_encoder():
-    # Pick the fastest available H.264 encoder for re-encoding high-res
-    # (AV1/VP9) downloads. Prefer a hardware encoder for the platform's GPU
-    # (Apple VideoToolbox, NVIDIA NVENC, Intel QuickSync, AMD AMF); fall back
-    # to software libx264. "Listed" doesn't guarantee "works" (e.g. nvenc with
-    # no NVIDIA GPU), so _reencode_to_h264 retries with libx264 on failure.
+    # Pick the fastest H.264 encoder that ACTUALLY WORKS on this machine's GPU:
+    # Apple VideoToolbox, NVIDIA NVENC, Intel QuickSync or AMD AMF, each probed
+    # for real; fall back to software libx264.
     if not FFMPEG_PATH:
         return None
     try:
-        out = subprocess.run(
+        listed = subprocess.run(
             [FFMPEG_PATH, "-hide_banner", "-encoders"],
             capture_output=True, text=True, timeout=15,
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return None
-    for enc in ("h264_videotoolbox", "h264_nvenc", "h264_qsv", "h264_amf", "libx264"):
-        if enc in out:
+    for enc in ("h264_videotoolbox", "h264_qsv", "h264_nvenc", "h264_amf"):
+        if enc in listed and _encoder_works(enc):
             return enc
-    return None
+    return "libx264" if "libx264" in listed else None
+
+
+ENCODER_LABELS = {
+    "h264_videotoolbox": "Apple VideoToolbox (hardveres)",
+    "h264_nvenc": "NVIDIA NVENC (hardveres)",
+    "h264_qsv": "Intel QuickSync (hardveres)",
+    "h264_amf": "AMD AMF (hardveres)",
+    "libx264": "szoftveres (libx264)",
+}
 
 
 H264_ENCODER = _pick_h264_encoder()
@@ -307,6 +332,15 @@ def run_download(download_id, url, quality, reencode=True):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/api/info")
+def api_info():
+    return jsonify({
+        "encoder": H264_ENCODER,
+        "encoder_label": ENCODER_LABELS.get(H264_ENCODER, "nincs"),
+        "accelerated": H264_ENCODER not in (None, "libx264"),
+    })
 
 
 @app.route("/api/formats", methods=["POST"])

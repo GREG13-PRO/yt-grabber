@@ -189,6 +189,21 @@ function pollProgress(downloadId) {
   }, 1000);
 }
 
+async function loadInfo() {
+  try {
+    const resp = await fetch("/api/info");
+    const data = await resp.json();
+    const badge = document.getElementById("accel-badge");
+    badge.textContent = "Átkódolás: " + data.encoder_label;
+    badge.classList.toggle("accel-hw", data.accelerated);
+    badge.classList.toggle("accel-sw", !data.accelerated);
+    badge.classList.remove("hidden");
+  } catch (e) {
+    /* ignore */
+  }
+}
+loadInfo();
+
 fetchBtn.addEventListener("click", fetchFormats);
 downloadBtn.addEventListener("click", startDownload);
 urlInput.addEventListener("keydown", (e) => {
