@@ -87,6 +87,13 @@ def main():
         add_data_arg(os.path.join(ROOT, "static"), "static"),
         add_data_arg(ffmpeg_dir, os.path.join("vendor", "ffmpeg", plat)),
     ]
+
+    # App icon (macOS .icns, Windows .ico). Linux ELF binaries carry no icon.
+    icon = {"macos": "icon.icns", "windows": "icon.ico"}.get(plat)
+    if icon:
+        icon_path = os.path.join(ROOT, "assets", icon)
+        if os.path.isfile(icon_path):
+            args.append(f"--icon={icon_path}")
     # macOS keeps the default onedir output so PyInstaller produces a proper
     # .app bundle (wrapped into a .dmg afterwards). Windows also uses onedir so
     # the Inno Setup installer can package the folder into a real installer

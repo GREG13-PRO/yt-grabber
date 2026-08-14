@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import uuid
 from urllib.parse import urlparse
@@ -389,6 +390,45 @@ def api_progress(download_id):
 @app.route("/downloads/<path:filename>")
 def download_file(filename):
     return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
+
+
+def _os_open(path):
+    if sys.platform == "darwin":
+        subprocess.run(["open", path], check=False)
+    elif sys.platform.startswith("win"):
+        os.startfile(path)  # type: ignore[attr-defined]  # Windows-only
+    else:
+        subprocess.run(["xdg-open", path], check=False)
+
+
+@app.route("/api/open", methods=["POST"])
+def api_open():
+    # Open the finished file with the OS default player. This is a local-only
+    # tool (bound to 127.0.0.1), so "open on the server" == "open on the user's
+    # machine" - and in the packaged desktop app the <a download> link doesn't
+    # work, so this is how the "open file" button functions.
+    data = request.get_json(silent=True) or {}
+    filename = os.path.basename(data.get("filename", ""))
+    path = os.path.join(DOWNLOAD_DIR, filename)
+    # Guard against path traversal: the resolved path must stay in DOWNLOAD_DIR.
+    if not filename or os.path.dirname(os.path.abspath(path)) != os.path.abspath(DOWNLOAD_DIR):
+        return jsonify({"error": "Érvénytelen fájlnév."}), 400
+    if not os.path.isfile(path):
+        return jsonify({"error": "A fájl nem található."}), 404
+    try:
+        _os_open(path)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"ok": True})
+
+
+@app.route("/api/reveal", methods=["POST"])
+def api_reveal():
+    try:
+        _os_open(DOWNLOAD_DIR)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"ok": True})
 
 
 def bootstrap():

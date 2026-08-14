@@ -221,10 +221,43 @@ body {
 .btn-success {
   background: linear-gradient(135deg, #2ecc71, #16a085);
   box-shadow: 0 8px 24px -8px rgba(46, 204, 113, 0.55);
-  width: 100%;
+  flex: 1;
   height: 46px;
   text-decoration: none;
+}
+
+.done-actions {
+  display: flex;
+  gap: 0.6rem;
   margin-top: 0.9rem;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 46px;
+  padding: 0 1.1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.btn-secondary svg {
+  width: 18px;
+  height: 18px;
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent-3);
+  background: #23242f;
 }
 
 #fetch-btn {

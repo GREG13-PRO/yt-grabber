@@ -16,8 +16,12 @@ const progressArea = document.getElementById("progress-area");
 const progressFill = document.getElementById("progress-fill");
 const progressStatus = document.getElementById("progress-status");
 const progressPercent = document.getElementById("progress-percent");
-const downloadLink = document.getElementById("download-link");
+const doneActions = document.getElementById("done-actions");
+const openFileBtn = document.getElementById("open-file-btn");
+const openFolderBtn = document.getElementById("open-folder-btn");
 const downloadError = document.getElementById("download-error");
+
+let lastFilename = null;
 
 const QUALITY_LABELS = {
   best: "Legjobb",
@@ -118,7 +122,7 @@ async function startDownload() {
   const quality = selectedQuality;
   const reencode = document.getElementById("reencode-check").checked;
   hideError(downloadError);
-  downloadLink.classList.add("hidden");
+  doneActions.classList.add("hidden");
   progressArea.classList.remove("hidden");
   progressFill.style.width = "0%";
   progressPercent.textContent = "";
@@ -172,8 +176,8 @@ function pollProgress(downloadId) {
         progressFill.style.width = "100%";
         progressStatus.textContent = "Kész!";
         progressPercent.textContent = "100%";
-        downloadLink.href = `/downloads/${encodeURIComponent(data.filename)}`;
-        downloadLink.classList.remove("hidden");
+        lastFilename = data.filename;
+        doneActions.classList.remove("hidden");
         downloadBtn.disabled = false;
       } else if (data.status === "error") {
         clearInterval(pollTimer);
@@ -203,6 +207,27 @@ async function loadInfo() {
   }
 }
 loadInfo();
+
+async function postAction(endpoint, body) {
+  try {
+    const resp = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      showError(downloadError, data.error || "Nem sikerült megnyitni.");
+    }
+  } catch (e) {
+    showError(downloadError, "Nem sikerült kapcsolódni a szerverhez.");
+  }
+}
+
+openFileBtn.addEventListener("click", () => {
+  if (lastFilename) postAction("/api/open", { filename: lastFilename });
+});
+openFolderBtn.addEventListener("click", () => postAction("/api/reveal"));
 
 fetchBtn.addEventListener("click", fetchFormats);
 downloadBtn.addEventListener("click", startDownload);
